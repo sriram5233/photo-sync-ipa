@@ -1,19 +1,35 @@
 name: Build IPA
-on: [push, workflow_dispatch]
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - run: brew install xcodegen && xcodegen generate
-      - run: |
+
+      - name: Generate Xcode project
+        run: brew install xcodegen && xcodegen generate
+
+      - name: Build app
+        run: |
           xcodebuild -project PhotoSync.xcodeproj -scheme PhotoSync -sdk iphoneos \
             -configuration Release -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
-      - run: |
+
+      - name: Package IPA
+        run: |
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/PhotoSync.app Payload/
           zip -r PhotoSync.ipa Payload
+
       - uses: actions/upload-artifact@v4
         with:
           name: PhotoSync-ipa
