@@ -9,8 +9,11 @@ struct PhotoSyncApp: App {
 struct Album: Identifiable {
     let id: String
     let title: String
+    let isUser: Bool          // true = created by you, false = default/smart album
     let collection: PHAssetCollection
 }
+
+enum Filter: String, CaseIterable { case all = "All", mine = "Created", defaults = "Default" }
 
 struct ContentView: View {
     @State private var albums: [Album] = []
@@ -19,12 +22,23 @@ struct ContentView: View {
     @State private var picking = false
     @State private var busy = false
     @State private var status = ""
+    @State private var filter = Filter.all
+
+    var visible: [Album] { albums.filter { filter == .all || (filter == .mine) == $0.isUser } }
+    var allSelected: Bool { !visible.isEmpty && visible.allSatisfy { selected.contains($0.id) } }
 
     var body: some View {
         NavigationStack {
             List {
-                Section("1. Select albums") {
-                    ForEach(albums) { a in
+                Section("1. Select albums (\(selected.count) selected)") {
+                    Picker("Filter", selection: $filter) {
+                        ForEach(Filter.allCases, id: \.self) { Text($0.rawValue) }
+                    }.pickerStyle(.segmented)
+                    Button(allSelected ? "Deselect All" : "Select All") {
+                        if allSelected { visible.forEach { selected.remove($0.id) } }
+                        else { visible.forEach { selected.insert($0.id) } }
+                    }
+                    ForEach(visible) { a in
                         Button {
                             if !selected.insert(a.id).inserted { selected.remove(a.id) }
                         } label: {
@@ -62,7 +76,7 @@ struct ContentView: View {
             PHAssetCollection.fetchAssetCollections(with: type, subtype: .any, options: nil)
                 .enumerateObjects { c, _, _ in
                     if PHAsset.fetchAssets(in: c, options: nil).count > 0 {
-                        list.append(Album(id: c.localIdentifier, title: c.localizedTitle ?? "Album", collection: c))
+                        list.append(Album(id: c.localIdentifier, title: c.localizedTitle ?? "Album", isUser: type == .album, collection: c))
                     }
                 }
         }
